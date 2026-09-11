@@ -3,12 +3,5 @@
   "deployment_target": "agent_runtime",
   "is_a2a": true,
   "agent_directory": "app",
-  "deployment_timestamp": "2026-09-11T06:53:47.808405+00:00",
-  "pending_operation": {
-    "operation_name": "projects/79154685110/locations/us-central1/reasoningEngines/7348235769787449344/operations/4061554399195955200",
-    "project": "praxis-magnet-508004-d7",
-    "location": "us-central1",
-    "deployment_target": "agent_runtime",
-    "started_at": "2026-09-11T07:02:09.810653+00:00"
-  }
+  "deployment_timestamp": "2026-09-11T07:05:25.938994+00:00"
 }
