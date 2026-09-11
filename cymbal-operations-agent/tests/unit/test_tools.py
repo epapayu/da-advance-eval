@@ -89,7 +89,9 @@ class TestAgentToolsMocked(unittest.TestCase):
         self.assertIsNotNone(parsed_table)
         self.assertIn("TXN-001", parsed_table)
         self.assertIn("$42.50", parsed_table)
-        self.assertIn("CREDIT_CARD (VISA)", parsed_table)
+        self.assertIn("CREDIT_CARD", parsed_table)
+        self.assertIn("VISA", parsed_table)
+        self.assertIn("POS_01", parsed_table)
 
     @patch("app.tools.analytics_tool._call_data_agent_with_retry")
     def test_analytics_tool_unreachable_exception(self, mock_api):

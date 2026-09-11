@@ -261,7 +261,7 @@ def _parse_mcp_pos_transactions(mcp_resp: dict) -> Optional[str]:
         if not transactions:
             return None
 
-        headers = ["Txn ID", "Timestamp", "Store", "POS", "Cashier", "Total", "Payment"]
+        headers = ["Txn ID", "Timestamp", "Store", "POS Terminal", "Cashier ID", "Total", "Payment Method", "Card Brand"]
         rows = []
         for t in transactions[:10]:
             try:
@@ -271,15 +271,25 @@ def _parse_mcp_pos_transactions(mcp_resp: dict) -> Optional[str]:
                 tot_str = str(t.get("total", "$0.00"))
 
             ts_str = str(t.get("event_timestamp", "N/A"))[:19]
-            pay_str = f"{t.get('payment_method', 'N/A')} ({t.get('payment_network', 'N/A')})"
+            pay_method = str(t.get("payment_method", "N/A"))
+            card_brand = t.get("card_brand") or t.get("payment_network", "N/A")
+            raw_pan = str(t.get("card_number") or t.get("pan", ""))
+            if raw_pan:
+                clean_digits = re.sub(r"\D", "", raw_pan)
+                last4 = clean_digits[-4:] if len(clean_digits) >= 4 else "XXXX"
+                brand_str = f"{card_brand} (****-****-****-{last4})"
+            else:
+                brand_str = str(card_brand)
+
             rows.append([
                 t.get("transaction_id", "N/A"),
                 ts_str,
-                t.get("store_id", "N/A"),
-                t.get("pos_terminal_id", "N/A"),
-                t.get("cashier_id", "N/A"),
+                str(t.get("store_id", "N/A")),
+                str(t.get("pos_terminal_id", "N/A")),
+                str(t.get("cashier_id", "N/A")),
                 tot_str,
-                pay_str
+                pay_method,
+                brand_str
             ])
 
         header_line = "| " + " | ".join(headers) + " |"
