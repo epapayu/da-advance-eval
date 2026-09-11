@@ -99,14 +99,14 @@ cymbal-operations-agent/
 - **Adjacent Context Window Stitching:** Implemented a two-stage GoogleSQL query:
   1. Executes `VECTOR_SEARCH` with `COSINE` distance to locate the top-matching chunk `m`.
   2. Self-joins back to `pos_manual_chunk_embeddings c` across `chunk_index BETWEEN (m.chunk_index - 1) AND (m.chunk_index + 1)`, aggregating surrounding text using `STRING_AGG(c.chunk_content, '\n' ORDER BY c.chunk_index ASC)` to eliminate fragmented runbooks.
-- **Safety & Rejection Guardrail:** Enforces a strict similarity threshold of $\ge 0.70$. Queries scoring below this threshold (or missing hardware terms) return the certified fallback string:
-  > *"⚠️ WARNING: No certified POS hardware documentation found matching this query. The requested equipment or topic is out-of-scope for Cymbal Retail POS hardware maintenance."*
+- **Safety & Rejection Guardrail:** Enforces a strict similarity threshold of $\ge 0.70$ and a full-text keyword search fallback boosted to `0.95`. Queries scoring below this threshold (or missing hardware terms) return the certified declining string:
+  > *"I cannot find certified warranty or repair rules for this specific error in our technical repository."*
 - **Clickable Manual Links:** Dynamically transforms `gs://` bucket paths into authenticated HTTPS URLs (`https://storage.cloud.google.com/...`).
 
 ### 3. Challenge 2.3: Configure & Deploy Bigtable MCP Microservice & Toolset (`bigtable_mcp_toolset`)
 - **Container Microservice:** Deployed Google's official Database Toolbox container (`us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest`) to Cloud Run (`mcp-toolbox-bigtable`) listening on `--address=0.0.0.0` and `--port=8080`.
 - **Secret Manager Mounting:** Stored `tools.yaml` in Secret Manager secret `bigtable-mcp-tools-secret:latest` and mounted directly to `/etc/toolbox/tools.yaml`.
-- **Toolbox Schema:** Configured using the current declarative flat schema:
+- **Parameterized Queries with Partition Pruning:** Replaced unparameterized global table scans with parameterized GoogleSQL queries implementing partition pruning on the binary `_key` row key:
   ```yaml
   kind: source
   name: bigtable-source
@@ -127,18 +127,39 @@ cymbal-operations-agent/
   description: "List all Bigtable schemas."
   ---
   kind: tool
-  name: read_cashier_realtime_metrics
+  name: read_cashier_realtime_alerts_sql
   type: bigtable-sql
   source: bigtable-source
-  description: "Reads live 1-hour rolling metrics and audit status flags."
+  description: "Reads live 1-hour rolling metrics and audit status flags for a cashier by row key prefix with partition pruning."
+  parameters:
+    - name: key_prefix
+      type: string
+      description: "Row key prefix filter for partition pruning (e.g. STORE_048#CASH_1190)"
+      required: true
   statement: |
-    SELECT * FROM cashier_realtime_alerts;
+    SELECT * FROM cashier_realtime_alerts
+    WHERE _key LIKE CAST(CONCAT(@key_prefix, '%') AS BYTES)
+    LIMIT 1;
+  ---
+  kind: tool
+  name: read_pos_transactions_enriched_sql
+  type: bigtable-sql
+  source: bigtable-source
+  description: "Reads enriched real-time POS transaction logs by row key prefix with partition pruning."
+  parameters:
+    - name: key_prefix
+      type: string
+      description: "Row key prefix filter for partition pruning (e.g. STORE_048#POS_01)"
+      required: true
+  statement: |
+    SELECT * FROM pos_transactions_enriched
+    WHERE _key LIKE CAST(CONCAT(@key_prefix, '%') AS BYTES)
+    LIMIT 20;
   ```
 - **Live MCP Endpoint Verification:**
-  - `POST https://mcp-toolbox-bigtable-iva3sfwkua-uc.a.run.app/mcp` with method `tools/list` returns all 3 registered tools.
-  - `POST https://mcp-toolbox-bigtable-iva3sfwkua-uc.a.run.app/mcp` with method `tools/call` (`list_bigtable_tables`) successfully returns:
-    `["cashier_realtime_alerts", "pos_transactions_enriched"]`.
-- **Telemetry Binary Deserialization:** Row keys in `cashier_realtime_alerts` are time-series formatted with reverse timestamps (`STORE_048#CASH_1190#<REVERSE_TS>`). Cell values are stored in binary format. `app/tools/bigtable_tool.py` deserializes Bigtable binary payloads using `struct.unpack('>d')` for IEEE 754 float64 values (`cashier_1h_promo_rate`, `cashier_1h_total_discount_usd`, `cashier_1h_avg_discount_pct`) and `struct.unpack('>q')` for int64 values (`cashier_1h_manual_override_count`, `cashier_1h_txn_count`).
+  - `POST https://mcp-toolbox-bigtable-iva3sfwkua-uc.a.run.app/mcp` with method `tools/list` returns all 4 registered tools (`list_bigtable_tables`, `list_bigtable_schemas`, `read_cashier_realtime_alerts_sql`, `read_pos_transactions_enriched_sql`).
+  - `POST https://mcp-toolbox-bigtable-iva3sfwkua-uc.a.run.app/mcp` with method `tools/call` (`read_cashier_realtime_alerts_sql` with `key_prefix: STORE_048#CASH_1190`) returns the targeted base64-encoded partition payload directly through Cloud Run without SDK fallback.
+- **Telemetry Binary Deserialization:** Row keys in `cashier_realtime_alerts` are time-series formatted with reverse timestamps (`STORE_048#CASH_1190#<REVERSE_TS>`). Cell values are stored in binary format. `app/tools/bigtable_tool.py` decodes MCP base64 payloads and deserializes Bigtable binary payloads using `struct.unpack('>d')` for IEEE 754 float64 values (`cashier_1h_promo_rate`, `cashier_1h_total_discount_usd`, `cashier_1h_avg_discount_pct`) and `struct.unpack('>q')` for int64 values (`cashier_1h_manual_override_count`, `cashier_1h_txn_count`).
 
 ---
 

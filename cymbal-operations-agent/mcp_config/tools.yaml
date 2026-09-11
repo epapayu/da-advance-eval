@@ -23,9 +23,27 @@ description: "List all Bigtable schemas, including tables with column family def
 ---
 
 kind: tool
-name: read_cashier_realtime_metrics
+name: read_cashier_realtime_alerts_sql
 type: bigtable-sql
 source: bigtable-source
-description: "Reads live 1-hour rolling metrics and audit status flags for a cashier by row key prefix."
+description: "Reads live 1-hour rolling metrics and audit status flags for a cashier by row key prefix with partition pruning."
 statement: |
-  SELECT * FROM cashier_realtime_alerts;
+  SELECT * FROM cashier_realtime_alerts WHERE _key LIKE CAST(CONCAT(@key_prefix, '%') AS BYTES) LIMIT 1;
+parameters:
+  - name: key_prefix
+    type: string
+    description: "Row key prefix filter for partition pruning (e.g. STORE_048#CASH_1190)"
+
+---
+
+kind: tool
+name: read_pos_transactions_enriched_sql
+type: bigtable-sql
+source: bigtable-source
+description: "Reads enriched real-time POS transaction logs by row key prefix with partition pruning."
+statement: |
+  SELECT * FROM pos_transactions_enriched WHERE _key LIKE CAST(CONCAT(@key_prefix, '%') AS BYTES) LIMIT 10;
+parameters:
+  - name: key_prefix
+    type: string
+    description: "Row key prefix filter for partition pruning (e.g. STORE_048#POS_01)"

@@ -61,7 +61,7 @@ async def run_scenario(scenario, runner, session_service):
 
     session = await session_service.create_session(
         user_id="test_auditor",
-        app_name="cymbal_operations_agent"
+        app_name="app"
     )
 
     user_msg = types.Content(
@@ -101,7 +101,7 @@ async def main():
     print("=" * 80)
 
     session_service = InMemorySessionService()
-    runner = Runner(agent=root_agent, session_service=session_service, app_name="cymbal_operations_agent")
+    runner = Runner(agent=root_agent, session_service=session_service, app_name="app")
 
     for s in SCENARIOS:
         try:

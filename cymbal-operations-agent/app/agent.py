@@ -29,5 +29,5 @@ root_agent = Agent(
 
 app = App(
     root_agent=root_agent,
-    name="cymbal_operations_agent",
+    name="app",
 )

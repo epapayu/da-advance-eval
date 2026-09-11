@@ -118,7 +118,7 @@ def _run_fulltext_search_fallback(query: str):
         equipment_covered,
         source_pdf_uri,
         chunk_index,
-        0.75 AS similarity_score
+        0.95 AS similarity_score
       FROM
         `{PROJECT_ID}.cymbal_gold.pos_manual_chunk_embeddings`
       WHERE
@@ -175,10 +175,7 @@ def pos_troubleshooting_rag_tool(diagnostic_query: str) -> str:
             if fallback_rows:
                 row = fallback_rows[0]
             else:
-                return (
-                    "⚠️ WARNING: No certified POS hardware documentation found matching this query. "
-                    "The requested equipment or topic is out-of-scope for Cymbal Retail POS hardware maintenance."
-                )
+                return "I cannot find certified warranty or repair rules for this specific error in our technical repository."
 
         https_link = _convert_gcs_uri_to_https(row.source_pdf_uri)
         return (

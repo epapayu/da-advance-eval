@@ -1,29 +1,93 @@
 {
   "eval_cases": [
     {
-      "eval_case_id": "greeting",
+      "eval_case_id": "pos_hardware_diagnostic_err_pay_4001",
       "prompt": {
         "role": "user",
-        "parts": [{"text": "Hello, what can you help me with?"}]
-      }
-    },
-    {
-      "eval_case_id": "weather_query",
-      "prompt": {
-        "role": "user",
-        "parts": [{"text": "What's the weather like in San Francisco?"}]
-      }
-    },
-    {
-      "eval_case_id": "capital_lookup",
-      "prompt": {
-        "role": "user",
-        "parts": [{"text": "What is the capital of France?"}]
+        "parts": [{"text": "What is the immediate field recovery protocol when a cashier encounters an ERR-PAY-4001 EMV contactless payment freeze, and how do we ensure the customer is not double-charged?"}]
       },
       "reference": {
         "response": {
           "role": "model",
-          "parts": [{"text": "The capital of France is Paris."}]
+          "parts": [{"text": "Toshiba TCx 810 Guide ERR-PAY-4001 EMV PIN Pad Tokenization Timeout protocol and double-charge prevention instructions."}]
+        }
+      }
+    },
+    {
+      "eval_case_id": "out_of_scope_hardware_guardrail",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "How do I replace the engine oil on a Ford F-150 truck?"}]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [{"text": "I cannot find certified warranty or repair rules for this specific error in our technical repository."}]
+        }
+      }
+    },
+    {
+      "eval_case_id": "inventory_stockout_risk_under_20h",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "What is the estimated cover hours remaining for store inventory positions experiencing stockout risk of less than 20 hours, and what is their total on-hand inventory?"}]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [{"text": "Inventory positions experiencing stockout risk with estimated cover hours under 20.0 from the reconciliation ledger."}]
+        }
+      }
+    },
+    {
+      "eval_case_id": "cashier_realtime_metrics_lookup",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Read live 1-hour rolling metrics and audit status flags for Cashier CASH_1190 at Store 48."}]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [{"text": "Live 1-hour metrics for Cashier CASH_1190 at Store 48 including override rate, manual override count, and audit status flag."}]
+        }
+      }
+    },
+    {
+      "eval_case_id": "warranty_transaction_verification",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Check transaction details for TXN-20260312-0015811 and show the warranty coverage policy for the purchased item."}]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [{"text": "Samsung Galaxy Watch4 Classic LTE purchased under TXN-20260312-0015811 with 24-month limited hardware warranty."}]
+        }
+      }
+    },
+    {
+      "eval_case_id": "dual_cashier_baseline_comparison",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "What is Cashier CASH_1190's live 1-hour override rate right now, compared to their 7-day historical override baseline?"}]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [{"text": "Comparison between Cashier CASH_1190's live 1-hour override rate from Bigtable and 7-day historical baseline from BigQuery with variance delta."}]
+        }
+      }
+    },
+    {
+      "eval_case_id": "cross_cloud_offender_audit",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Show cashiers with active cashier promo abuse alerts in the last 7 days and retrieve checkout logs for the top offender."}]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [{"text": "Ranked cashier promo abuse offenders from BigQuery pos_anomaly_alerts and checkout transaction logs from AWS S3 silver_pos_transactions for top offender CASH_1164."}]
         }
       }
     }

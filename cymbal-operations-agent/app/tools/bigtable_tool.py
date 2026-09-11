@@ -105,6 +105,70 @@ def _fallback_direct_bigtable_read(prefix: str) -> str:
         )
 
 
+import base64
+import json
+
+
+def _parse_mcp_bigtable_response(resp_data: dict, prefix: str) -> Optional[str]:
+    """Parses and formats JSON-RPC response from the Cloud Run Bigtable MCP service."""
+    try:
+        content_items = resp_data.get("result", {}).get("content", [])
+        if not content_items:
+            return None
+        content_text = content_items[0].get("text", "[]")
+        rows = json.loads(content_text)
+        if not rows:
+            return f"No real-time records found in Bigtable for prefix '{prefix}'."
+
+        row = rows[0]
+        row_key_raw = row.get("_key", "")
+        if row_key_raw:
+            try:
+                row_key = base64.b64decode(row_key_raw).decode("utf-8", errors="replace")
+            except Exception:
+                row_key = str(row_key_raw)
+        else:
+            row_key = prefix
+
+        metrics = {}
+        for family in ["flags", "stats"]:
+            fam_dict = row.get(family, {})
+            if isinstance(fam_dict, dict):
+                for k_b64, v_b64 in fam_dict.items():
+                    try:
+                        col_name = base64.b64decode(k_b64).decode("utf-8", errors="replace")
+                    except Exception:
+                        col_name = str(k_b64)
+                    try:
+                        val_bytes = base64.b64decode(v_b64)
+                        metrics[col_name] = _decode_bigtable_cell(col_name, val_bytes)
+                    except Exception:
+                        metrics[col_name] = str(v_b64)
+
+        override_rate = metrics.get("cashier_1h_promo_rate", 0.0)
+        override_count = metrics.get("cashier_1h_manual_override_count", 0)
+        txn_count = metrics.get("cashier_1h_txn_count", 0)
+        audit_status = metrics.get("audit_status", "UNKNOWN")
+        total_discount = metrics.get("cashier_1h_total_discount_usd", 0.0)
+        last_ts = metrics.get("last_event_ts", "N/A")
+
+        return (
+            f"### Real-Time Cashier Metrics (Bigtable: `{row_key}`)\n"
+            f"- **Audit Status Flag:** `{audit_status}`\n"
+            f"- **Live 1-Hour Override / Promo Rate:** `{override_rate * 100:.2f}%` ({override_rate})\n"
+            f"- **Live 1-Hour Manual Overrides:** `{override_count}` / `{txn_count}` transactions\n"
+            f"- **Live 1-Hour Discount Total:** `${total_discount:.2f} USD`\n"
+            f"- **Last Event Timestamp:** `{last_ts}`\n"
+            f"\nFull Telemetry Payload:\n"
+            f"```json\n"
+            f"{metrics}\n"
+            f"```\n"
+        )
+    except Exception as e:
+        logger.warning(f"Error parsing MCP response: {e}")
+        return None
+
+
 def bigtable_mcp_toolset(store_id: int, cashier_id: str) -> str:
     """Queries Cloud Bigtable for real-time 1-hour rolling metrics and status flags for a cashier.
 
@@ -135,15 +199,19 @@ def bigtable_mcp_toolset(store_id: int, cashier_id: str) -> str:
                 headers["Authorization"] = f"Bearer {token}"
 
             payload = {
+                "jsonrpc": "2.0",
+                "id": 1,
                 "method": "tools/call",
                 "params": {
-                    "name": "scan_cashier_alerts_by_store",
-                    "arguments": {"store_prefix": prefix}
+                    "name": "read_cashier_realtime_alerts_sql",
+                    "arguments": {"key_prefix": prefix}
                 }
             }
             resp = requests.post(f"{mcp_url}/mcp", json=payload, headers=headers, timeout=10)
             if resp.status_code == 200:
-                return str(resp.json())
+                parsed = _parse_mcp_bigtable_response(resp.json(), prefix)
+                if parsed:
+                    return parsed
             logger.warning(f"Cloud Run MCP returned status {resp.status_code}: {resp.text}")
         except Exception as e:
             logger.warning(f"MCP invocation failed: {e}. Executing direct Bigtable read.")
