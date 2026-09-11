@@ -1,0 +1,31 @@
+kind: source
+name: bigtable-source
+type: bigtable
+project: praxis-magnet-508004-d7
+instance: operations-db
+
+---
+
+kind: tool
+name: list_bigtable_tables
+type: bigtable-list-tables
+source: bigtable-source
+description: "List all Bigtable tables in the instance."
+
+---
+
+kind: tool
+name: list_bigtable_schemas
+type: bigtable-list-schemas
+source: bigtable-source
+description: "List all Bigtable schemas, including tables with column family definitions, logical views, and materialized views."
+
+---
+
+kind: tool
+name: read_cashier_realtime_metrics
+type: bigtable-sql
+source: bigtable-source
+description: "Reads live 1-hour rolling metrics and audit status flags for a cashier by row key prefix."
+statement: |
+  SELECT * FROM cashier_realtime_alerts;
