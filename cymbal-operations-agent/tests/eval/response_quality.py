@@ -1,3 +1,4 @@
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Any
 from google import genai
@@ -41,35 +42,44 @@ def evaluate(instance: Dict[str, Any]) -> Dict[str, Any]:
     prompt += f"Full Agent Trace: {instance.get('agent_data', '')}\n"
 
     client = _get_client()
-    try:
-        response = client.models.generate_content(
-            model="gemini-flash-latest",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0,  # deterministic grading
-                response_mime_type="application/json",
-                response_schema=_Verdict,  # guaranteed schema-valid JSON
-            ),
-        )
-        verdict = response.parsed
-        if verdict is None:
-            return {"score": 0, "explanation": response.text or "Model returned empty verdict"}
-        return {"score": max(1, min(5, verdict.score)), "explanation": verdict.explanation}
-    except Exception as e:
-        return {"score": 0, "explanation": f"LLM judge evaluation failed: {e}"}
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model="gemini-flash-latest",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0,  # deterministic grading
+                    response_mime_type="application/json",
+                    response_schema=_Verdict,  # guaranteed schema-valid JSON
+                ),
+            )
+            verdict = response.parsed
+            if verdict is None:
+                return {"score": 0, "explanation": response.text or "Model returned empty verdict"}
+            return {"score": max(1, min(5, verdict.score)), "explanation": verdict.explanation}
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(2.0 * (attempt + 1))
+                continue
+            return {"score": 0, "explanation": f"LLM judge evaluation failed after retries: {e}"}
 
 
 def evaluate_batch(instances: List[Dict[str, Any]], max_workers: int = 4) -> List[Dict[str, Any]]:
-    """Optimizes overall evaluation turnaround latency via parallel LLM-judge worker processing."""
+    """Optimizes overall evaluation turnaround latency via parallel LLM-judge worker processing
+    with defensive quota throttling and backoff pacing to prevent API limit exhaustion.
+    """
     results = [None] * len(instances)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_idx = {
-            executor.submit(evaluate, inst): i for i, inst in enumerate(instances)
-        }
+        future_to_idx = {}
+        for i, inst in enumerate(instances):
+            future_to_idx[executor.submit(evaluate, inst)] = i
+            time.sleep(0.1)  # Stagger worker submissions to avoid instant RPM burst
+
         for future in as_completed(future_to_idx):
             idx = future_to_idx[future]
             try:
                 results[idx] = future.result()
             except Exception as e:
                 results[idx] = {"score": 3, "explanation": f"Batch worker error: {e}"}
+            time.sleep(0.5)  # Defensive quota pacing delay between completed tasks
     return results
