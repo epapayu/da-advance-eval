@@ -1,5 +1,7 @@
 # Cymbal Retail Operations Agent Evaluation Configuration
 metrics_to_run:
+  - tool_use_quality
+  - grounding
   - custom_response_quality
   - agent_turn_count
   - pii_masking_compliance

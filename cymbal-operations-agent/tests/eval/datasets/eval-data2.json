@@ -1,0 +1,175 @@
+{
+  "eval_set_id": "cymbal_retail_eval_data2_multiturn_v1",
+  "name": "Cymbal Retail Operations Evaluation Suite - Multi-Turn Workflows",
+  "description": "Multi-turn conversational evaluation cases for Cymbal Retail Operations Agent testing context retention, intent switching across tools, and cross-cloud loss prevention audits.",
+  "eval_cases": [
+    {
+      "eval_case_id": "multi_turn_inventory_to_hardware_workflow",
+      "description": "Multi-Turn Workflow: Store Operations Manager reviews low stock items, then pivots to terminal hardware printer cutter jam at checkout register.",
+      "agent_data": {
+        "turns": [
+          {
+            "turn_index": 0,
+            "events": [
+              {
+                "author": "user",
+                "content": {
+                  "role": "user",
+                  "parts": [
+                    {
+                      "text": "What are the items with under 20 cover hours remaining at Store 8?"
+                    }
+                  ]
+                }
+              },
+              {
+                "author": "cymbal_operations_agent",
+                "content": {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "text": "At Store 8, SKU-9014 (Organic Whole Milk 1gal) has 14.2 hours cover remaining and SKU-4102 (Sourdough Bread Loaf) has 18.5 hours cover remaining."
+                    }
+                  ]
+                }
+              },
+              {
+                "author": "user",
+                "content": {
+                  "role": "user",
+                  "parts": [
+                    {
+                      "text": "Register 2 at Store 8 is also jammed with printer error ERR-DN-PRNT-24V. How do I fix the cutter blade right now?"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "To clear the ERR-DN-PRNT-24V cutter lock on the Diebold Nixdorf Beetle printer at Register 2: Switch off printer power, disconnect the 24V PoweredUSB cable, open the front access door, and rotate the manual thumb-wheel clockwise until the cutter blade fully retracts. Clear jammed paper fragments and reconnect the cable. (Reference: Diebold Nixdorf Beetle Guide: https://storage.cloud.google.com/da-advanced-new-module1-bucket/store_pos_manual_generic/Diebold_Nixdorf_Beetle_Guide.pdf)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "multi_turn_cashier_promo_abuse_to_s3_audit",
+      "description": "UC-2.3 Multi-Turn: Loss Prevention Auditor identifies top cashier promo abuse in BigQuery pos_anomaly_alerts and investigates detailed basket logs in AWS S3 silver_pos_transactions.",
+      "agent_data": {
+        "turns": [
+          {
+            "turn_index": 0,
+            "events": [
+              {
+                "author": "user",
+                "content": {
+                  "role": "user",
+                  "parts": [
+                    {
+                      "text": "Show cashiers with active cashier promo abuse alerts in the last 7 days."
+                    }
+                  ]
+                }
+              },
+              {
+                "author": "cymbal_operations_agent",
+                "content": {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "text": "Cashiers with active promo abuse alerts in pos_anomaly_alerts (last 7 days):\n1. Cashier CASH_1190 (Store 48): 18 override events, anomaly score 0.94\n2. Cashier CASH_0412 (Store 12): 11 override events, anomaly score 0.81"
+                    }
+                  ]
+                }
+              },
+              {
+                "author": "user",
+                "content": {
+                  "role": "user",
+                  "parts": [
+                    {
+                      "text": "Retrieve the recent basket transaction logs from AWS S3 for Cashier CASH_1190 to verify the discount override details."
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Retrieved basket logs from AWS S3 (silver_pos_transactions) for Cashier CASH_1190 at Store 48:\n- TXN-20260310-00812: SKU-3301 discounted from $45.00 to $5.00 (Override Reason Code: MGR_PROMO_SPECIAL, Authorized by: CASH_1190)\n- TXN-20260311-00194: SKU-7729 discounted from $120.00 to $12.00 (Override Reason Code: DAMAGE_DISCOUNT)\nAll payment card numbers are masked according to PCI-DSS standards."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "multi_turn_parallel_realtime_to_historical_comparison",
+      "description": "UC-2.2 Multi-Turn: Comparing live Bigtable 1-hour cashier override rate against historical 7-day store average in BigQuery.",
+      "agent_data": {
+        "turns": [
+          {
+            "turn_index": 0,
+            "events": [
+              {
+                "author": "user",
+                "content": {
+                  "role": "user",
+                  "parts": [
+                    {
+                      "text": "What is Cashier CASH_1190's live 1-hour override rate right now?"
+                    }
+                  ]
+                }
+              },
+              {
+                "author": "cymbal_operations_agent",
+                "content": {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "text": "Cashier CASH_1190 at Store 48 currently has a live 1-hour override rate of 14 overrides/hour and void rate of 8.4% in Cloud Bigtable."
+                    }
+                  ]
+                }
+              },
+              {
+                "author": "user",
+                "content": {
+                  "role": "user",
+                  "parts": [
+                    {
+                      "text": "How does that compare to the 7-day average override rate for Store 48?"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Comparison for Store 48:\n- Cashier CASH_1190 Live 1-Hour Rate: 14 overrides/hour (Elevated)\n- Store 48 Historical 7-Day Baseline Average: 2.3 overrides/hour across all cashiers\n- Deviation: Cashier CASH_1190 is operating at +508% above the store baseline, triggering an AUDIT_REQUIRED flag."
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
