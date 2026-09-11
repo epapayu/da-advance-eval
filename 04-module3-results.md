@@ -137,12 +137,24 @@
   - Playground: [Vertex AI Agent Engines Playground](https://console.cloud.google.com/vertex-ai/agents/agent-engines/locations/us-central1/agent-engines/7348235769787449344?project=praxis-magnet-508004-d7)
 
 ### Challenge 3.2: Register Agent to Gemini Enterprise & Configure Access
-- Recorded deployment metadata in `deployment_metadata.json`.
-- Cloud Console instructions for registering under Gemini Enterprise app `da-adv-elevate-ge`:
-  1. Open Google Cloud Console ➔ **Gemini Enterprise**.
-  2. Select application `da-adv-elevate-ge`.
-  3. Under Agents / Tools, register `cymbal_operations_agent` referencing `projects/79154685110/locations/us-central1/reasoningEngines/7348235769787449344`.
-  4. In **User permissions**, grant access to **All Users**.
+- **Registration Command Executed:**
+  ```bash
+  agents-cli publish gemini-enterprise \
+    --gemini-enterprise-app-id "projects/79154685110/locations/global/collections/default_collection/engines/da-adv-elevate-ge_1789103981929" \
+    --agent-runtime-id "projects/79154685110/locations/us-central1/reasoningEngines/7348235769787449344" \
+    --display-name "cymbal_operations_agent" \
+    --description "Cymbal Retail Operations Coordinator Agent" \
+    --project praxis-magnet-508004-d7 \
+    --registration-type adk
+  ```
+- **Registration Output:**
+  - Status: `✅ Successfully created agent registration!`
+  - Registered Agent Resource: `projects/79154685110/locations/global/collections/default_collection/engines/da-adv-elevate-ge_1789103981929/assistants/default_assistant/agents/5794222225865450000`
+  - Agent State: `ENABLED`
+  - Target Application: `da-adv-elevate-ge` (`da-adv-elevate-ge_1789103981929`)
+  - Console Dashboard: [Gemini Enterprise App Dashboard](https://console.cloud.google.com/gemini-enterprise/locations/global/engines/da-adv-elevate-ge_1789103981929/overview/dashboard?project=praxis-magnet-508004-d7)
+- **User Access Permissions:**
+  - Review and confirm **User permissions** under the registered agent's settings in Gemini Enterprise to ensure visibility and sharing for workspace members (`All Users`).
 
 ---
 
