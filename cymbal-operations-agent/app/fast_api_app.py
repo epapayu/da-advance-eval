@@ -26,6 +26,9 @@ from google.cloud import logging as google_cloud_logging
 
 from app.app_utils import services
 from app.app_utils.a2a import attach_a2a_routes
+from app.app_utils.reasoning_engine_adapter import (
+    attach_reasoning_engine_routes,
+)
 from app.app_utils.telemetry import setup_telemetry
 from app.app_utils.typing import Feedback
 
@@ -75,6 +78,10 @@ app: FastAPI = get_fast_api_app(
 )
 app.title = "cymbal-operations-agent"
 app.description = "API for interacting with the Agent cymbal-operations-agent"
+
+# Proxy routes so the Vertex AI Console Playground (reasoning_engine SDK) can
+# talk to this agent alongside the native adk_api routes.
+attach_reasoning_engine_routes(app)
 
 
 @app.post("/feedback")
