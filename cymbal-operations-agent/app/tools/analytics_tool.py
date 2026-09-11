@@ -8,11 +8,12 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-DATA_AGENT_RESOURCE = os.getenv(
-    "DATA_AGENT_RESOURCE_NAME",
-    "projects/praxis-magnet-508004-d7/locations/global/dataAgents/gda-f0056a5c-197e-411e-9454-9da119bbf1c0"
-)
+PROJECT_ID = os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT", "")
+DATA_AGENT_ID = os.getenv("DATA_AGENT_ID", "")
 DATA_AGENT_LOCATION = os.getenv("DATA_AGENT_LOCATION", "global")
+DATA_AGENT_RESOURCE = os.getenv("DATA_AGENT_RESOURCE_NAME", "")
+if not DATA_AGENT_RESOURCE and PROJECT_ID and DATA_AGENT_ID:
+    DATA_AGENT_RESOURCE = f"projects/{PROJECT_ID}/locations/{DATA_AGENT_LOCATION}/dataAgents/{DATA_AGENT_ID}"
 
 
 def _get_credentials():
@@ -147,10 +148,14 @@ def cymbal_analytics_tool(user_query: str) -> str:
         return str(result)
     except Exception as e:
         logger.error(f"Failed to query Data Agent: {e}", exc_info=True)
-        return (
+        unreachable_warning = (
             "Store data is currently unreachable due to a temporary network or service disruption. "
             "Please verify database connectivity or retry in a few moments."
         )
+        return json.dumps({
+            "status": "UNREACHABLE",
+            "message": unreachable_warning
+        }, indent=2)
 
 
 query_retail_analytics = cymbal_analytics_tool

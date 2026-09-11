@@ -9,7 +9,7 @@ from google.genai import types
 from app.prompts import SYSTEM_INSTRUCTIONS
 from app.tools.analytics_tool import cymbal_analytics_tool
 from app.tools.rag_tool import pos_troubleshooting_rag_tool
-from app.tools.bigtable_tool import bigtable_mcp_toolset
+from app.tools.bigtable_tool import bigtable_mcp_toolset, read_pos_transactions_tool
 
 MODEL_NAME = os.getenv("COORDINATOR_MODEL", "gemini-3.6-flash")
 
@@ -23,7 +23,8 @@ root_agent = Agent(
     tools=[
         cymbal_analytics_tool,
         pos_troubleshooting_rag_tool,
-        bigtable_mcp_toolset
+        bigtable_mcp_toolset,
+        read_pos_transactions_tool
     ],
 )
 

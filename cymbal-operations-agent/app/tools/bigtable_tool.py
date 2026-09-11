@@ -1,5 +1,7 @@
 """Cloud Bigtable MCP Toolset connecting to Cloud Run microservice with OIDC authentication and direct SDK fallback."""
 
+import base64
+import json
 import logging
 import os
 import re
@@ -8,7 +10,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-PROJECT_ID = os.getenv("PROJECT_ID", "praxis-magnet-508004-d7")
+PROJECT_ID = os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT", "")
 BIGTABLE_INSTANCE_ID = os.getenv("BIGTABLE_INSTANCE_ID", "operations-db")
 BIGTABLE_TABLE_ID = os.getenv("BIGTABLE_TABLE_ID", "cashier_realtime_alerts")
 MCP_SERVICE_URL = os.getenv("BIGTABLE_MCP_URL", "")
@@ -115,12 +117,16 @@ def _parse_mcp_bigtable_response(resp_data: dict, prefix: str) -> Optional[str]:
         content_items = resp_data.get("result", {}).get("content", [])
         if not content_items:
             return None
-        content_text = content_items[0].get("text", "[]")
-        rows = json.loads(content_text)
-        if not rows:
+        content_text = content_items[0].get("text", "{}")
+        parsed_data = json.loads(content_text)
+        if isinstance(parsed_data, list):
+            if not parsed_data:
+                return f"No real-time records found in Bigtable for prefix '{prefix}'."
+            row = parsed_data[0]
+        elif isinstance(parsed_data, dict):
+            row = parsed_data
+        else:
             return f"No real-time records found in Bigtable for prefix '{prefix}'."
-
-        row = rows[0]
         row_key_raw = row.get("_key", "")
         if row_key_raw:
             try:
@@ -221,3 +227,125 @@ def bigtable_mcp_toolset(store_id: int, cashier_id: str) -> str:
 
 query_bigtable_cashier_metrics = bigtable_mcp_toolset
 bigtable_mcp_tool = bigtable_mcp_toolset
+
+
+def _parse_mcp_pos_transactions(mcp_resp: dict) -> Optional[str]:
+    """Parses base64-encoded Database Toolbox response for pos_transactions_enriched."""
+    try:
+        content_list = mcp_resp.get("content", [])
+        if not content_list:
+            result_obj = mcp_resp.get("result", {})
+            content_list = result_obj.get("content", [])
+        if not content_list:
+            return None
+
+        transactions = []
+        for item in content_list:
+            text_val = item.get("text", "")
+            if not text_val:
+                continue
+            row_data = json.loads(text_val)
+            tx_family = row_data.get("tx", {})
+            decoded_tx = {}
+            for k_b64, v_b64 in tx_family.items():
+                k = base64.b64decode(k_b64).decode("utf-8")
+                val_bytes = base64.b64decode(v_b64)
+                try:
+                    v = val_bytes.decode("utf-8")
+                except Exception:
+                    v = str(val_bytes)
+                decoded_tx[k] = v
+            if decoded_tx:
+                transactions.append(decoded_tx)
+
+        if not transactions:
+            return None
+
+        headers = ["Txn ID", "Timestamp", "Store", "POS", "Cashier", "Total", "Payment"]
+        rows = []
+        for t in transactions[:10]:
+            try:
+                tot_float = float(t.get("total", 0))
+                tot_str = f"${tot_float:.2f}"
+            except (ValueError, TypeError):
+                tot_str = str(t.get("total", "$0.00"))
+
+            ts_str = str(t.get("event_timestamp", "N/A"))[:19]
+            pay_str = f"{t.get('payment_method', 'N/A')} ({t.get('payment_network', 'N/A')})"
+            rows.append([
+                t.get("transaction_id", "N/A"),
+                ts_str,
+                t.get("store_id", "N/A"),
+                t.get("pos_terminal_id", "N/A"),
+                t.get("cashier_id", "N/A"),
+                tot_str,
+                pay_str
+            ])
+
+        header_line = "| " + " | ".join(headers) + " |"
+        sep_line = "| " + " | ".join("---" for _ in headers) + " |"
+        data_lines = ["| " + " | ".join(r) + " |" for r in rows]
+        table = "\n".join([header_line, sep_line] + data_lines)
+
+        return (
+            f"### Enriched Real-Time POS Transactions (Bigtable)\n\n"
+            f"{table}\n\n"
+            f"*(Retrieved {len(transactions)} enriched checkout logs via Cloud Run Database Toolbox)*"
+        )
+    except Exception as e:
+        logger.warning(f"Failed to parse enriched transactions: {e}")
+        return None
+
+
+def read_pos_transactions_enriched(store_id: int, pos_terminal_id: str = "") -> str:
+    """Reads enriched real-time POS transaction logs from Cloud Bigtable for a store register with partition pruning.
+
+    Args:
+        store_id: The integer store identifier (e.g., 48 or '48').
+        pos_terminal_id: Optional register ID (e.g., 'POS_01' or '01'). If omitted, queries all registers at the store.
+    Returns:
+        Structured markdown table of recent enriched checkout transactions with line items, payment types, and audit flags.
+    """
+    try:
+        store_num = int(re.sub(r"[^\d]", "", str(store_id)))
+    except ValueError:
+        store_num = 0
+
+    prefix = f"STORE_{store_num:03d}"
+    clean_pos = str(pos_terminal_id).strip().upper()
+    if clean_pos:
+        if not clean_pos.startswith("POS_"):
+            clean_pos = f"POS_{clean_pos}"
+        prefix = f"{prefix}#{clean_pos}"
+
+    mcp_url = os.getenv("BIGTABLE_MCP_URL", MCP_SERVICE_URL).strip()
+    if mcp_url:
+        try:
+            import requests
+            token = _get_oidc_token(mcp_url)
+            headers = {"Content-Type": "application/json"}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+
+            payload = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "read_pos_transactions_enriched_sql",
+                    "arguments": {"key_prefix": prefix}
+                }
+            }
+            resp = requests.post(f"{mcp_url}/mcp", json=payload, headers=headers, timeout=10)
+            if resp.status_code == 200:
+                parsed = _parse_mcp_pos_transactions(resp.json())
+                if parsed:
+                    return parsed
+        except Exception as e:
+            logger.warning(f"MCP read_pos_transactions failed: {e}")
+
+    return f"No recent enriched POS transactions found for prefix `{prefix}` in Bigtable."
+
+
+read_pos_transactions_tool = read_pos_transactions_enriched
+

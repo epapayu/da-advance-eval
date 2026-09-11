@@ -8,9 +8,9 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-PROJECT_ID = os.getenv("PROJECT_ID", "praxis-magnet-508004-d7")
+PROJECT_ID = os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT", "")
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.70"))
-CONNECTION_ID = f"{PROJECT_ID}.us-central1.biglake-iceberg-connection"
+CONNECTION_ID = os.getenv("BIGLAKE_CONNECTION_ID") or f"{PROJECT_ID}.us-central1.biglake-iceberg-connection"
 
 _bq_client = None
 
@@ -32,7 +32,7 @@ def _convert_gcs_uri_to_https(gcs_uri: str) -> str:
 
 
 def _run_stitched_vector_search(query: str, max_retries: int = 3):
-    """Executes BigQuery VECTOR_SEARCH with adjacent context stitching (N-1 to N+1)."""
+    """Executes BigQuery VECTOR_SEARCH with adjacent context stitching (N-1 to N+1) and SQL error code boosting."""
     from google.cloud import bigquery
 
     sql = f"""
@@ -43,7 +43,14 @@ def _run_stitched_vector_search(query: str, max_retries: int = 3):
         base.equipment_covered,
         base.source_pdf_uri,
         base.chunk_index,
-        ROUND(1.0 - distance, 4) AS similarity_score
+        ROUND(
+          CASE 
+            WHEN REGEXP_CONTAINS(base.chunk_content, r'ERR-[A-Z0-9_-]+') 
+                 AND REGEXP_CONTAINS(@query_text, r'ERR-[A-Z0-9_-]+')
+            THEN LEAST(1.0, (1.0 - distance) + 0.25)
+            ELSE (1.0 - distance)
+          END, 4
+        ) AS similarity_score
       FROM
         VECTOR_SEARCH(
           TABLE `{PROJECT_ID}.cymbal_gold.pos_manual_chunk_embeddings`,
@@ -55,9 +62,11 @@ def _run_stitched_vector_search(query: str, max_retries: int = 3):
               endpoint => 'text-embedding-005'
             ).result AS embedding
           ),
-          top_k => 1,
+          top_k => 5,
           distance_type => 'COSINE'
         )
+      ORDER BY similarity_score DESC
+      LIMIT 1
     ),
     stitched_context AS (
       SELECT

@@ -90,6 +90,19 @@
           "parts": [{"text": "Ranked cashier promo abuse offenders from BigQuery pos_anomaly_alerts and checkout transaction logs from AWS S3 silver_pos_transactions for top offender CASH_1164."}]
         }
       }
+    },
+    {
+      "eval_case_id": "pos_transactions_enriched_checkout",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Show recent enriched real-time POS transaction logs for Store 48."}]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [{"text": "Enriched real-time POS transactions from Bigtable for Store 48 including transaction ID, timestamp, register terminal ID, cashier ID, total amount, and payment network."}]
+        }
+      }
     }
   ]
 }
